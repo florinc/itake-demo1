@@ -1,0 +1,84 @@
+ public IEnumerable<ITax> GetTaxes(Product product)
+        {
+            if (product.Tax.HasFlag(TaxingType.RegionalTax) && !product.Tax.HasFlag(TaxingType.Tva))
+                yield return new RegionalTax(product);
+
+            if (product.Tax.HasFlag(TaxingType.Tva))
+                yield return new TvaTax(product);
+
+            if (product.Tax.HasFlag(TaxingType.Discount))
+                yield return new Discount();
+        }
+************************************
+
+    [Flags]
+    public enum TaxingType
+    {
+        None = 0,
+        Tva = 1,
+        RegionalTax = 2,
+        Discount = 4
+    }
+
+***************************************
+
+ public decimal GetPrice(Product product)
+        {
+            decimal currentPrice = product.Price;
+
+            bool tvaApplied = false;
+            if (product.Tax.HasFlag(TaxingType.Tva))
+            {
+                currentPrice = currentPrice + product.Price * 0.22m;
+                tvaApplied = true;
+            }
+
+            if (product.Tax.HasFlag(TaxingType.RegionalTax) && !tvaApplied)
+            {
+                currentPrice = currentPrice + product.Price * 0.1m;
+                regionalApplied = true;
+            }
+
+            if (product.Tax.HasFlag(TaxingType.Discount))
+            {
+                currentPrice = currentPrice - currentPrice * 0.3m;
+            }
+
+            return currentPrice;
+        }
+
+**************************
+
+		 private static Mock<IProductRepository> GetRepositoryStub(Product product)
+        {
+            Mock<IProductRepository> repository = new Mock<IProductRepository>();
+            repository.Setup(r => r.GetProduct(It.IsAny<string>()))
+                .Returns(product);
+            return repository;
+        }
+
+        private static MainWindowViewModel GetDefaultViewModel(Mock<IProductRepository> repository, FakeScanner scanner)
+        {
+            return new MainWindowViewModel(scanner, repository.Object);
+        }
+
+*********************
+
+        public void GetPrice_TwoTaxes_BothTaxesAreApplied()
+        {
+            Mock<ITax> tax = new Mock<ITax>();
+            tax.Setup(t => t.Apply(It.IsAny<decimal>())).Returns(1);
+
+            Mock<IProductTaxProvider> taxProvider = new Mock<IProductTaxProvider>();
+            taxProvider.Setup(t => t.GetTaxes(It.IsAny<Product>()))
+                .Returns(new[] { tax.Object, tax.Object });
+
+            PriceCalculator priceCalculator = new PriceCalculator(taxProvider.Object);
+
+
+            decimal actualRezult = priceCalculator.GetPrice(new Product { Price = 5m });
+
+
+            Assert.AreEqual(7, actualRezult);
+        }
+****************
